@@ -83,7 +83,7 @@ export default function App() {
           setSelectedIncident(prevSelected => 
             prevSelected?.id === id ? null : prevSelected
           );
-        }, 45000);
+        }, 15000);
       }
     } catch (e) {
       console.error("Failed to resolve incident:", e);
