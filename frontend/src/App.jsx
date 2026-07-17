@@ -22,7 +22,7 @@ export default function App() {
 
   // 1. Establish and maintain the real-time SSE stream
   useEffect(() => {
-    const eventSource = new EventSource('http://127.0.0.1:8000/api/incidents/stream');
+    const eventSource = new EventSource(`${import.meta.env.VITE_API_BASE_URL}/api/incidents/stream`);
 
     eventSource.onopen = () => setIsConnected(true);
     eventSource.onerror = () => setIsConnected(false);
@@ -67,7 +67,7 @@ export default function App() {
 
   const resolveIncident = async (id) => {
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/incidents/${id}/resolve`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/incidents/${id}/resolve`, {
         method: 'PUT'
       });
       if (response.ok) {
