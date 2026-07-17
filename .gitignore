@@ -1,0 +1,8 @@
+# Root Gitignore
+.DS_Store
+.vscode/
+node_modules/
+.venv/
+stadium.db
+.env
+.antigravity/rules/structure.md
