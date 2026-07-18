@@ -1,5 +1,4 @@
 from dotenv import load_dotenv
-load_dotenv()
 import asyncio
 import json
 from contextlib import asynccontextmanager
@@ -10,17 +9,17 @@ from sqlalchemy.orm import Session
 from . import models, schemas, agent, simulator
 from .database import engine, get_db, SessionLocal
 
+load_dotenv(override=True)
+
 is_shutting_down = False
 
 models.Base.metadata.create_all(bind=engine)
 
+incident_queue = asyncio.Queue()
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup task
-    simulator_task = asyncio.create_task(simulator.start_incident_simulator(SessionLocal))
     yield
-    # Shutdown task
-    simulator_task.cancel()
 
 app = FastAPI(title="FIFA 2026 CommandCenter AI Backend", lifespan=lifespan)
 
@@ -77,39 +76,55 @@ async def resolve_incident(incident_id: int, db: Session = Depends(get_db)):
         return {"success": True, "message": "Incident resolved successfully"}
     return {"success": False, "message": "Incident not found"}
 
+async def process_manual_incident(description: str, db_session: Session):
+    classification = await agent.analyze_incident(description)
+    
+    incident = models.Incident(
+        title=classification.summary,
+        description=description,
+        recommended_action=classification.recommended_action,
+        announcement=classification.multilingual_announcement,
+        severity=classification.severity,
+        category=classification.category
+    )
+    db_session.add(incident)
+    db_session.commit()
+    db_session.refresh(incident)
+    
+    incident_dict = {
+        "id": incident.id,
+        "title": incident.title,
+        "description": incident.description,
+        "severity": incident.severity,
+        "category": incident.category,
+        "status": incident.status,
+        "recommended_action": incident.recommended_action,
+        "announcement": incident.announcement,
+        "created_at": incident.created_at.isoformat() if incident.created_at else None
+    }
+    
+    await incident_queue.put(incident_dict)
+
+@app.post("/api/incidents/manual")
+async def create_manual_incident(payload: schemas.ManualIncidentRequest, db: Session = Depends(get_db)):
+    await process_manual_incident(payload.description, db)
+    return {"success": True, "message": "Manual incident created and dispatched"}
+
 @app.get("/api/incidents/stream")
 async def stream_incidents(request: Request):
     async def event_generator():
-        last_id = 0
         try:
             while True:
                 if is_shutting_down or await request.is_disconnected():
                     break
                 try:
-                    # Use an explicit scoped session block in the generator loop to release DB locks between iterations
-                    with SessionLocal() as session:
-                        incidents = session.query(models.Incident).filter(
-                            models.Incident.id > last_id,
-                            models.Incident.status == 'PENDING'
-                        ).order_by(models.Incident.id.asc()).all()
-                        for incident in incidents:
-                            data = {
-                                "id": incident.id,
-                                "title": incident.title,
-                                "description": incident.description,
-                                "severity": incident.severity,
-                                "category": incident.category,
-                                "status": incident.status,
-                                "recommended_action": incident.recommended_action,
-                                "announcement": incident.announcement,
-                                "created_at": incident.created_at.isoformat() if incident.created_at else None
-                            }
-                            yield f"data: {json.dumps(data)}\n\n"
-                            last_id = incident.id
+                    incident_data = await asyncio.wait_for(incident_queue.get(), timeout=1.0)
+                    yield f"data: {json.dumps(incident_data)}\n\n"
+                except asyncio.TimeoutError:
+                    pass
                 except Exception as e:
                     print(f"Error in stream: {e}")
-                    
-                await asyncio.sleep(2)
+                    await asyncio.sleep(1)
         except asyncio.CancelledError:
             print("Client disconnected. Halting stream.")
             

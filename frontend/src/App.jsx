@@ -19,6 +19,9 @@ export default function App() {
   const [incidents, setIncidents] = useState([]);
   const [selectedIncident, setSelectedIncident] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [manualAlertText, setManualAlertText] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 1. Establish and maintain the real-time SSE stream
   useEffect(() => {
@@ -317,6 +320,81 @@ export default function App() {
         </div>
       </div>
       
+      {/* FAB */}
+      <button 
+        onClick={() => setIsModalOpen(true)}
+        className="fixed bottom-8 right-8 bg-cyan-600 hover:bg-cyan-500 text-white rounded-full p-4 shadow-lg shadow-cyan-900/50 transition-all duration-300 z-40 group"
+      >
+        <span className="flex items-center space-x-2 font-bold tracking-widest uppercase">
+          <Activity className="w-5 h-5 group-hover:scale-110 transition-transform" />
+          <span>Add Alert</span>
+        </span>
+      </button>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-lg shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-slate-800 bg-slate-950/50">
+              <h2 className="text-xl font-bold tracking-wider uppercase flex items-center text-slate-100">
+                <AlertTriangle className="w-5 h-5 mr-3 text-cyan-500" />
+                Inject Manual Alert
+              </h2>
+            </div>
+            <div className="p-6">
+              <label className="block text-xs font-mono text-slate-400 mb-2 uppercase tracking-widest">
+                Raw Event Telemetry
+              </label>
+              <textarea
+                className="w-full bg-slate-950 border border-slate-800 rounded p-3 text-slate-200 font-mono text-sm focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all min-h-[120px] resize-none"
+                placeholder="Describe the incident..."
+                value={manualAlertText}
+                onChange={(e) => setManualAlertText(e.target.value)}
+                disabled={isSubmitting}
+              />
+            </div>
+            <div className="p-4 border-t border-slate-800 bg-slate-950/50 flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setManualAlertText('');
+                }}
+                disabled={isSubmitting}
+                className="px-4 py-2 rounded text-slate-400 hover:text-slate-200 font-bold uppercase tracking-widest text-sm transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!manualAlertText.trim()) return;
+                  setIsSubmitting(true);
+                  try {
+                    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/incidents/manual`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ description: manualAlertText })
+                    });
+                    if (!res.ok) {
+                      throw new Error('API Request Failed');
+                    }
+                    setIsModalOpen(false);
+                    setManualAlertText('');
+                  } catch (e) {
+                    console.error("Error submitting manual alert", e);
+                    alert("Failed to generate alert. The AI API might be rate-limited.");
+                  } finally {
+                    setIsSubmitting(false);
+                  }
+                }}
+                disabled={isSubmitting || !manualAlertText.trim()}
+                className="px-6 py-2 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-bold uppercase tracking-widest text-sm shadow-[0_0_10px_rgba(8,145,178,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? 'Processing...' : 'Submit'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

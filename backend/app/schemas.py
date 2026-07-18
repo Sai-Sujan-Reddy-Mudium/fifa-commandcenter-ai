@@ -10,3 +10,6 @@ class IncidentClassification(BaseModel):
 
 class RawIncidentRequest(BaseModel):
     raw_text: str
+
+class ManualIncidentRequest(BaseModel):
+    description: str
