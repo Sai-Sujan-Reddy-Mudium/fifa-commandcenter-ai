@@ -23,6 +23,22 @@ export default function App() {
   const [manualAlertText, setManualAlertText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // 0. Hydrate initial state
+  useEffect(() => {
+    const fetchIncidents = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/incidents`);
+        if (res.ok) {
+          const data = await res.json();
+          setIncidents(data);
+        }
+      } catch (e) {
+        console.error("Failed to fetch initial incidents:", e);
+      }
+    };
+    fetchIncidents();
+  }, []);
+
   // 1. Establish and maintain the real-time SSE stream
   useEffect(() => {
     const eventSource = new EventSource(`${import.meta.env.VITE_API_BASE_URL}/api/incidents/stream`);
@@ -371,7 +387,10 @@ export default function App() {
                   try {
                     const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/incidents/manual`, {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
+                      headers: { 
+                        'Content-Type': 'application/json',
+                        'x-api-key': import.meta.env.VITE_ADMIN_API_KEY
+                      },
                       body: JSON.stringify({ description: manualAlertText })
                     });
                     if (!res.ok) {

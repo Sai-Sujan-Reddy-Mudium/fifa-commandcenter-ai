@@ -1,8 +1,9 @@
 from dotenv import load_dotenv
 import asyncio
 import json
+import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, Request
+from fastapi import FastAPI, Depends, Request, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -105,8 +106,21 @@ async def process_manual_incident(description: str, db_session: Session):
     
     await incident_queue.put(incident_dict)
 
+@app.get("/api/incidents")
+def get_active_incidents(db: Session = Depends(get_db)):
+    active_incidents = db.query(models.Incident).filter(models.Incident.status != "RESOLVED").order_by(models.Incident.created_at.desc()).all()
+    return active_incidents
+
 @app.post("/api/incidents/manual")
-async def create_manual_incident(payload: schemas.ManualIncidentRequest, db: Session = Depends(get_db)):
+async def create_manual_incident(
+    payload: schemas.ManualIncidentRequest, 
+    x_api_key: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    expected_key = os.getenv("ADMIN_API_KEY")
+    if not expected_key or x_api_key != expected_key:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
     await process_manual_incident(payload.description, db)
     return {"success": True, "message": "Manual incident created and dispatched"}
 
