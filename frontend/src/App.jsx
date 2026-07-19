@@ -388,8 +388,7 @@ export default function App() {
                     const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/incidents/manual`, {
                       method: 'POST',
                       headers: { 
-                        'Content-Type': 'application/json',
-                        'x-api-key': import.meta.env.VITE_ADMIN_API_KEY
+                        'Content-Type': 'application/json'
                       },
                       body: JSON.stringify({ description: manualAlertText })
                     });

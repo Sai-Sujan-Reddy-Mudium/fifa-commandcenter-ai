@@ -113,14 +113,10 @@ def get_active_incidents(db: Session = Depends(get_db)):
 
 @app.post("/api/incidents/manual")
 async def create_manual_incident(
-    payload: schemas.ManualIncidentRequest, 
-    x_api_key: str = Header(None),
+    payload: schemas.ManualIncidentRequest,
     db: Session = Depends(get_db)
 ):
-    expected_key = os.getenv("ADMIN_API_KEY")
-    if not expected_key or x_api_key != expected_key:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-        
+   
     await process_manual_incident(payload.description, db)
     return {"success": True, "message": "Manual incident created and dispatched"}
 
